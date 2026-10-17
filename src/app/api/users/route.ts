@@ -11,19 +11,4 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const { name, role } = body;
-
-    if (!name || !role) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    const userId = await dbOperations.createUser(name, role);
-    return NextResponse.json({ id: userId, name, role });
-  } catch (error) {
-    console.error('Error creating user:', error);
-    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
-  }
-}
+// POST route removed - user creation now handled by /api/auth/register
