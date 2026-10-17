@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 
-const Map = dynamic(() => import('@/components/Map'), { 
+const Map = dynamic(() => import('@/components/Map'), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-gray-100 flex items-center justify-center">Loading map...</div>
 });
@@ -19,6 +20,7 @@ interface TeamLocation {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [locations, setLocations] = useState<TeamLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,20 +37,48 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    const user = localStorage.getItem('user');
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    const parsedUser = JSON.parse(user);
+    if (parsedUser.role !== 'admin') {
+      router.push('/team');
+      return;
+    }
+
     fetchLocations();
-    
+
     // Poll every 10 seconds for real-time updates
     const interval = setInterval(fetchLocations, 10000);
-    
+
     return () => clearInterval(interval);
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <h1 className="text-2xl font-bold text-gray-900">PR Team Location Tracker</h1>
-          <p className="text-sm text-gray-600 mt-1">Admin Dashboard - Live Team Locations</p>
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">PR Team Location Tracker</h1>
+            <p className="text-sm text-gray-600 mt-1">Admin Dashboard - Live Team Locations</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <a href="/admin/approvals" className="text-sm text-gray-600 hover:text-gray-900">
+              Approvals
+            </a>
+            <button
+              onClick={() => {
+                localStorage.removeItem('user');
+                router.push('/login');
+              }}
+              className="text-sm text-red-600 hover:text-red-700"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 

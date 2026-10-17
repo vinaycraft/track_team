@@ -12,7 +12,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export interface User {
   id: number;
   name: string;
+  email: string;
+  password: string;
   role: 'admin' | 'team';
+  status: 'pending' | 'approved' | 'rejected';
   created_at: string;
 }
 
@@ -46,16 +49,47 @@ export const dbOperations = {
     if (error) return undefined;
     return data as User;
   },
-  
-  createUser: async (name: string, role: 'admin' | 'team') => {
+
+  getUserByEmail: async (email: string) => {
     const { data, error } = await supabase
       .from('users')
-      .insert([{ name, role }])
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error) return undefined;
+    return data as User;
+  },
+  
+  createUser: async (name: string, email: string, password: string, role: 'admin' | 'team') => {
+    const { data, error } = await supabase
+      .from('users')
+      .insert([{ name, email, password, role, status: 'pending' }])
       .select()
       .single();
     
     if (error) throw error;
     return data.id;
+  },
+
+  updateUserStatus: async (userId: number, status: 'approved' | 'rejected') => {
+    const { error } = await supabase
+      .from('users')
+      .update({ status })
+      .eq('id', userId);
+    
+    if (error) throw error;
+  },
+
+  getPendingUsers: async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data as User[];
   },
 
   // Location operations
