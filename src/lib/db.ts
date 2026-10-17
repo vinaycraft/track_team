@@ -1,47 +1,13 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import { createClient } from '@supabase/supabase-js';
 
-let db: Database.Database | null = null;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-function getDatabase(): Database.Database {
-  if (!db) {
-    const dataDir = path.join(process.cwd(), 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    
-    const dbPath = path.join(dataDir, 'locations.db');
-    db = new Database(dbPath);
-
-    // Initialize database schema
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('admin', 'team')),
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS locations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL UNIQUE,
-        latitude REAL NOT NULL,
-        longitude REAL NOT NULL,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-      );
-    `);
-
-    // Insert default admin if not exists
-    const adminExists = db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('admin') as { count: number };
-    if (adminExists.count === 0) {
-      db.prepare('INSERT INTO users (name, role) VALUES (?, ?)').run('Admin', 'admin');
-    }
-  }
-  
-  return db;
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
 }
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export interface User {
   id: number;
@@ -60,58 +26,96 @@ export interface Location {
 
 export const dbOperations = {
   // User operations
-  getAllUsers: () => {
-    const database = getDatabase();
-    return database.prepare('SELECT * FROM users').all() as User[];
+  getAllUsers: async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data as User[];
   },
   
-  getUserById: (id: number) => {
-    const database = getDatabase();
-    return database.prepare('SELECT * FROM users WHERE id = ?').get(id) as User | undefined;
+  getUserById: async (id: number) => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) return undefined;
+    return data as User;
   },
   
-  createUser: (name: string, role: 'admin' | 'team') => {
-    const database = getDatabase();
-    const stmt = database.prepare('INSERT INTO users (name, role) VALUES (?, ?)');
-    const result = stmt.run(name, role);
-    return result.lastInsertRowid as number;
+  createUser: async (name: string, role: 'admin' | 'team') => {
+    const { data, error } = await supabase
+      .from('users')
+      .insert([{ name, role }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data.id;
   },
 
   // Location operations
-  updateLocation: (userId: number, latitude: number, longitude: number) => {
-    const database = getDatabase();
-    const stmt = database.prepare(`
-      INSERT INTO locations (user_id, latitude, longitude)
-      VALUES (?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET
-        latitude = excluded.latitude,
-        longitude = excluded.longitude,
-        updated_at = CURRENT_TIMESTAMP
-    `);
-    stmt.run(userId, latitude, longitude);
+  updateLocation: async (userId: number, latitude: number, longitude: number) => {
+    const { error } = await supabase
+      .from('locations')
+      .upsert({
+        user_id: userId,
+        latitude,
+        longitude,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+    
+    if (error) throw error;
   },
 
-  getAllLocations: () => {
-    const database = getDatabase();
-    const stmt = database.prepare(`
-      SELECT l.*, u.name, u.role
-      FROM locations l
-      JOIN users u ON l.user_id = u.id
-      ORDER BY l.updated_at DESC
-    `);
-    return stmt.all() as (Location & { name: string; role: string })[];
+  getAllLocations: async () => {
+    const { data, error } = await supabase
+      .from('locations')
+      .select(`
+        *,
+        users (
+          name,
+          role
+        )
+      `)
+      .order('updated_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data.map((loc: any) => ({
+      ...loc,
+      name: loc.users.name,
+      role: loc.users.role
+    })) as (Location & { name: string; role: string })[];
   },
 
-  getLocationByUserId: (userId: number) => {
-    const database = getDatabase();
-    const stmt = database.prepare(`
-      SELECT l.*, u.name, u.role
-      FROM locations l
-      JOIN users u ON l.user_id = u.id
-      WHERE l.user_id = ?
-    `);
-    return stmt.get(userId) as (Location & { name: string; role: string }) | undefined;
+  getLocationByUserId: async (userId: number) => {
+    const { data, error } = await supabase
+      .from('locations')
+      .select(`
+        *,
+        users (
+          name,
+          role
+        )
+      `)
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) return undefined;
+    
+    return {
+      ...data,
+      name: data.users.name,
+      role: data.users.role
+    } as Location & { name: string; role: string };
   },
 };
 
-export default getDatabase;
+export default supabase;

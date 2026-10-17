@@ -9,8 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^9.6.0",
-    "better-sqlite3": "^13.0.3",
+    "@supabase/supabase-js": "^2.118.0",
     "leaflet": "^1.9.4",
     "next": "16.4.2",
     "react": "19.3.0",

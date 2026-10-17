@@ -3,7 +3,7 @@ import { dbOperations } from '@/lib/db';
 
 export async function GET() {
   try {
-    const locations = dbOperations.getAllLocations();
+    const locations = await dbOperations.getAllLocations();
     return NextResponse.json(locations);
   } catch (error) {
     console.error('Error fetching locations:', error);
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    dbOperations.updateLocation(userId, latitude, longitude);
+    await dbOperations.updateLocation(userId, latitude, longitude);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating location:', error);

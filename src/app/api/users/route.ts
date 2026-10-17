@@ -3,7 +3,7 @@ import { dbOperations } from '@/lib/db';
 
 export async function GET() {
   try {
-    const users = dbOperations.getAllUsers();
+    const users = await dbOperations.getAllUsers();
     return NextResponse.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const userId = dbOperations.createUser(name, role);
+    const userId = await dbOperations.createUser(name, role);
     return NextResponse.json({ id: userId, name, role });
   } catch (error) {
     console.error('Error creating user:', error);
